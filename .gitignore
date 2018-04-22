@@ -1,3 +1,4 @@
 *.pyc
 /data/images/
 /data/*.npz
+!/data/meanFaceShape.npz
