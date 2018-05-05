@@ -8,6 +8,8 @@ import os.path as osp
 import matplotlib.pyplot as plt
 from copy import copy
 import tools
+import h5py
+
 
 sys.path.append('./DesignLayer')
 
@@ -44,6 +46,23 @@ class DeepAlignmentNetwork(object):
 
         self.nStages = nStages
         self.workdir = './'
+
+    def write_hdf5(self):
+        dirname = os.path.abspath('./data')
+        train_filename = os.path.join(dirname, 'train_data.h5')
+        val_filename = os.path.join(dirname, 'val_data.h5')
+
+        with h5py.File(train_filename, 'w') as f:
+            f['data'] = self.Xtrain.astype(np.float32)
+            f['label'] = self.Ytrain.astype(np.float32)
+        with open(os.path.join(dirname, 'train_data_h5.txt'), 'w') as f:
+            f.write(train_filename + '\n')
+
+        with h5py.File(val_filename, 'w') as f:
+            f.create_dataset('data', data=self.Xvalid.astype(np.float32))
+            f.create_dataset('label', data=self.Yvalid.astype(np.float32))
+        with open(os.path.join(dirname, 'val_data_h5.txt'), 'w') as f:
+            f.write(val_filename + '\n')
 
     def getLabelsForDataset(self, imageServer):
         """生成当前imageServer的initLandmarks和gtLandmarks组合
@@ -93,12 +112,12 @@ class DeepAlignmentNetwork(object):
     def createCNN(self, istrain):
         net = caffe.NetSpec()
         if istrain:
-            net.s1_input, net.label = L.MemoryData(batch_size=self.batchsize, channels=self.nChannels, height=self.imageHeight, width=self.imageWidth, ntop=2)
+            net.data, net.label = L.HDF5Data(batch_size=self.batchsize, source="./data/train_data_h5.txt", ntop=2)
         else:
-            net.s1_input, net.label = L.MemoryData(batch_size=self.batchsize, channels=self.nChannels, height=self.imageHeight, width=self.imageWidth, ntop=2)
+            net.data, net.label = L.HDF5Data(batch_size=self.batchsize, source="./data/val_data_h5.txt", ntop=2)
 
         # STAGE 1
-        net.s1_conv1_1, net.s1_relu1_1 = conv_relu(net.s1_input, 3, 64)
+        net.s1_conv1_1, net.s1_relu1_1 = conv_relu(net.data, 3, 64)
         net.s1_batch1_1 = L.BatchNorm(net.s1_relu1_1)
         net.s1_conv1_2, net.s1_relu1_2 = conv_relu(net.s1_batch1_1, 3, 64)
         net.s1_batch1_2 = L.BatchNorm(net.s1_relu1_2)
@@ -152,7 +171,7 @@ class DeepAlignmentNetwork(object):
                                             layer="LandmarkTranFormLayer",
                                             param_str=str(dict(mean_shape=self.initlandmarks.tolist())))
         # IMAGE TRANSFORM
-        net.s1_img_output = L.Python(net.s1_input, net.s1_transform_params,
+        net.s1_img_output = L.Python(net.data, net.s1_transform_params,
                                         module="AffineTransformLayer",
                                         layer="AffineTransformLayer")
         # LANDMARK TRANSFORM
@@ -241,8 +260,8 @@ class DeepAlignmentNetwork(object):
         # train_Y是sample_num维度的label向量，
         # 这里sample_num必须是trainning输入batch_size的整数倍，
         # 为了方便，我在实际使用时每次迭代只在整个训练集中随机选取一个batch_size的图片数据放进去；
-        solver.net.set_input_arrays(self.Xtrain, self.Ytrain)
-        solver.test_nets[0].set_input_arrays(self.Xvalid, self.Yvalid)
+        # solver.net.set_input_arrays(self.Xtrain, self.Ytrain)
+        # solver.test_nets[0].set_input_arrays(self.Xvalid, self.Yvalid)
         # solver.step(1)即迭代一次，包括了forward和backward，solver.iter标识了当前的迭代次数；
         solver.step(1)
 

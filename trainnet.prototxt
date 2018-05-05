@@ -1,19 +1,17 @@
 layer {
-  name: "s1_input"
-  type: "MemoryData"
-  top: "s1_input"
+  name: "data"
+  type: "HDF5Data"
+  top: "data"
   top: "label"
-  memory_data_param {
+  hdf5_data_param {
+    source: "./data/train_data_h5.txt"
     batch_size: 64
-    channels: 1
-    height: 112
-    width: 112
   }
 }
 layer {
   name: "s1_conv1_1"
   type: "Convolution"
-  bottom: "s1_input"
+  bottom: "data"
   top: "s1_conv1_1"
   convolution_param {
     num_output: 64

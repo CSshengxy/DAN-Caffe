@@ -23,6 +23,7 @@ training = DeepAlignmentNetwork(1)
 #training = FaceAlignmentTraining(2, [1])
 
 training.loadData(trainSet, validationSet)
+training.write_hdf5()
 training.get_prototxt()
 
 #load previously saved moved
