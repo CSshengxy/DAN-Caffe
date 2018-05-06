@@ -18,15 +18,15 @@ validationSet = ImageServer.Load(datasetDir + "dataset_nimgs=100_perturbations=[
 
 #The parameters to the FaceAlignmentTraining constructor are: number of stages and indices of stages that will be trained
 #first stage training only
-training = DeepAlignmentNetwork(1)
+training = DeepAlignmentNetwork(2)
 #second stage training only
 #training = FaceAlignmentTraining(2, [1])
 
 training.loadData(trainSet, validationSet)
-# training.write_hdf5()
+trainSet = None
+validationSet = None
 # training.generate_lmdb()
 training.get_prototxt()
-
 #load previously saved moved
 #training.loadNetwork("../DAN-Menpo.npz")
 

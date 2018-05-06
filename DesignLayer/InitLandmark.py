@@ -11,9 +11,11 @@ class InitLandmark(caffe.Layer):
         There is no need to reshape the data
         """
         pass
+        batch_size = bottom[0].shape[0]
+        landmark_number = bottom[0].shape[1]
+        top[0].reshape(batch_size, landmark_number)
+
     def forward(self, bottom, top):
-        print(bottom[0].data.shape)
-        print(self.initlandmarks.shape)
         top[0].data[...] = bottom[0].data[...] + self.initlandmarks
 
 

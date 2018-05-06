@@ -5,13 +5,13 @@ import scipy.ndimage
 class Upscale2DLayer(caffe.Layer):
     def setup(self, bottom, top):
         params = eval(self.param_str)
-        check_param(params)
+        check_params(params)
         self.scale_factor = params['scale_factor']
     def reshape(self,bottom,top):
         """
         There is no need to reshape the data
         """
-        top[0].reshape(bottom[0].shape[0], bottom[0].shape[1], bottom[0].shape[2] * 2, bottom[0].shape[3] * 3)
+        top[0].reshape(bottom[0].shape[0], bottom[0].shape[1], bottom[0].shape[2] * 2, bottom[0].shape[3] * 2)
 
         pass
     def forward(self, bottom, top):
@@ -26,11 +26,10 @@ class Upscale2DLayer(caffe.Layer):
 
         pass
 
-    def check_params(params):
-        """
-        A utility function to check the parameters for the data layers.
-        """
-
-        required = ['scale_factor']
-        for r in required:
-            assert r in params.keys(), 'Params must include {}'.format(r)
+def check_params(params):
+    """
+    A utility function to check the parameters for the data layers.
+    """
+    required = ['scale_factor']
+    for r in required:
+        assert r in params.keys(), 'Params must include {}'.format(r)

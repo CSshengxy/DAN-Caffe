@@ -5,7 +5,7 @@ import numpy as np
 class TransformParamsLayer(caffe.Layer):
     def setup(self, bottom, top):
         params = eval(self.param_str)
-        check_param(params)
+        check_params(params)
         self.mean_shape = params['mean_shape']
     def reshape(self,bottom,top):
         """
@@ -14,11 +14,17 @@ class TransformParamsLayer(caffe.Layer):
         bottom传入的数据并不是forward来的数据, 确切的说, 都只是分配了空间并用0填充.
         通过top[index].reshape改变形状
         """
-        top[0].reshape(1,6);
+        top[0].reshape(bottom[0].shape[0], 1, 6);
         pass
     def forward(self, bottom, top):
-        transformed_shape = bottom[0]
-        destination = self.mean_shape
+        transformed_shape = bottom[0].data
+        nSamples = bottom[0].shape[0]
+        for i in range(nSamples):
+            top[0].data[i] = self.bestFit(transformed_shape[i])
+
+
+    def bestFit(self, transformed_shape):
+        destination = np.array(self.mean_shape)
         source = transformed_shape.reshape((-1, 2))
 
         destMean = np.mean(destination, axis=0)
@@ -29,9 +35,9 @@ class TransformParamsLayer(caffe.Layer):
 
         a = np.dot(srcVec, destVec) / np.linalg.norm(srcVec, 2)**2
         b = 0
-        for i in range(self.mean_shape.shape[0]):
+        for i in range(destination.shape[0]):
             b += srcVec[2*i] * destVec[2*i+1] - srcVec[2*i+1] * destVec[2*i]
-        b = b / np.nlinalg.norm(srcVec, 2)**2
+        b = b / np.linalg.norm(srcVec, 2)**2
 
         A = np.zeros((2, 2))
         A[0, 0] = a
@@ -40,7 +46,10 @@ class TransformParamsLayer(caffe.Layer):
         A[1, 1] = a
         srcMean = np.dot(srcMean, A)
 
-        top[0].data =  np.concatenate((A.flatten(), destMean - srcMean))
+        return np.concatenate((A.flatten(), destMean - srcMean))
+
+
+
     def backward(self, top, propagate_down, bottom):
         """
         These layers does not back propagate

@@ -4,7 +4,7 @@ layer {
   top: "data"
   data_param {
     source: "./data/data_val_lmdb"
-    batch_size: 64
+    batch_size: 30
     backend: LMDB
   }
 }
@@ -14,7 +14,7 @@ layer {
   top: "label"
   data_param {
     source: "./data/label_val_lmdb"
-    batch_size: 64
+    batch_size: 30
     backend: LMDB
   }
 }
@@ -360,10 +360,22 @@ layer {
   }
 }
 layer {
-  name: "output"
-  type: "Python"
+  name: "temp"
+  type: "Reshape"
   bottom: "s1_output"
-  top: "output"
+  top: "temp"
+  reshape_param {
+    shape {
+      dim: -1
+      dim: 136
+    }
+  }
+}
+layer {
+  name: "s1_landmarks"
+  type: "Python"
+  bottom: "temp"
+  top: "s1_landmarks"
   python_param {
     module: "InitLandmark"
     layer: "InitLandmark"
@@ -371,9 +383,480 @@ layer {
   }
 }
 layer {
+  name: "s1_transform_params"
+  type: "Python"
+  bottom: "s1_landmarks"
+  top: "s1_transform_params"
+  python_param {
+    module: "TransformParamsLayer"
+    layer: "TransformParamsLayer"
+    param_str: "{\'mean_shape\': [[28.00000326955537, 41.52647739629739], [28.18473626220345, 48.893413640413854], [29.005949383575135, 56.22849733872725], [30.542946011697204, 63.44273684940998], [33.396824764543865, 70.15097618682462], [37.813012869560886, 75.9664785485771], [43.24753768690606, 80.81965506076615], [49.227038726053806, 84.74777634799686], [55.999999890342664, 85.90433308929755], [62.77296103326805, 84.7477762228892], [68.75246199985698, 80.81965482520734], [74.18698672755605, 75.96647821263373], [78.60317472515122, 70.15097576930705], [81.45705991350502, 63.44273637917655], [82.99404984894903, 56.228496840103034], [83.81526283482975, 48.8934131266205], [84.00000225081773, 41.526476879091646], [33.205086065290985, 36.05813876941878], [36.709888697127404, 32.887695913270406], [41.65818338960112, 31.95748494410571], [46.760250563243275, 32.7017756409527], [51.53587513018286, 34.70101443356333], [60.464123704693534, 34.701014351103666], [65.23974823470392, 32.70177547027944], [70.3418153945978, 31.957484679188944], [75.29011010425403, 32.88769555695054], [78.79491935407295, 36.05813834835942], [55.99999947101122, 40.50158755663818], [55.99999951532473, 45.299592843626954], [55.999999559308236, 50.061868973908645], [55.99999960465557, 54.97181075056265], [50.36656703241276, 58.210045224418764], [53.07869012276794, 59.193610439090875], [55.99999965170437, 60.0659803765421], [58.92130916452672, 59.19361038512953], [61.633432236713844, 58.210045120360036], [38.903463523776324, 41.065317324548104], [41.9132333564164, 39.29239154332807], [45.56029670295601, 39.34859917328007], [48.734603047396675, 41.8083813663167], [45.3079952291903, 42.449131708920014], [41.68196138080555, 42.39384895688939], [63.2653959187644, 41.80838123211295], [66.43970221776888, 39.34859898044171], [70.08676556327023, 39.29239128312249], [73.0965419880784, 41.06531700874708], [70.31803759617006, 42.393848692411844], [66.69200374880648, 42.44913151142123], [45.14172073806898, 67.10212520938765], [49.14101832438483, 65.5292879441237], [53.184441130500645, 64.65379565877991], [55.99999970078608, 65.38025787519705], [58.81555825765257, 64.65379560677194], [62.85898107994015, 65.5292878174271], [66.8582786953089, 67.10212500881751], [62.98245563810238, 70.94508544682263], [59.06514423409652, 72.62448047720179], [55.99999977068336, 72.94832559377711], [52.93485530128825, 72.62448053382], [49.01754386626125, 70.94508557580002], [46.82482836560962, 67.32302019682943], [53.14206730425886, 67.05480548495909], [55.999999719126606, 67.3660630212708], [58.857932128244926, 67.05480543216842], [65.17517107184854, 67.32302002734903], [58.91110935815399, 69.00064403620222], [55.999999737425156, 69.34732248979763], [53.08889011029261, 69.00064408997517]]}"
+  }
+}
+layer {
+  name: "s1_img_output"
+  type: "Python"
+  bottom: "data"
+  bottom: "s1_transform_params"
+  top: "s1_img_output"
+  python_param {
+    module: "AffineTransformLayer"
+    layer: "AffineTransformLayer"
+  }
+}
+layer {
+  name: "s1_landmarks_affine"
+  type: "Python"
+  bottom: "s1_landmarks"
+  bottom: "s1_transform_params"
+  top: "s1_landmarks_affine"
+  python_param {
+    module: "LandmarkTranFormLayer"
+    layer: "LandmarkTranFormLayer"
+    param_str: "{\'inverse\': False}"
+  }
+}
+layer {
+  name: "s1_img_heatmap"
+  type: "Python"
+  bottom: "s1_landmarks_affine"
+  top: "s1_img_heatmap"
+  python_param {
+    module: "GetHeatMapLayer"
+    layer: "GetHeatMapLayer"
+  }
+}
+layer {
+  name: "s1_img_feature1"
+  type: "InnerProduct"
+  bottom: "s1_fc1_batch"
+  top: "s1_img_feature1"
+  inner_product_param {
+    num_output: 3136
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "s1_img_feature1_relu"
+  type: "ReLU"
+  bottom: "s1_img_feature1"
+  top: "s1_img_feature1"
+}
+layer {
+  name: "s1_img_feature2"
+  type: "Reshape"
+  bottom: "s1_img_feature1"
+  top: "s1_img_feature2"
+  reshape_param {
+    shape {
+      dim: -1
+      dim: 1
+      dim: 56
+      dim: 56
+    }
+  }
+}
+layer {
+  name: "s1_img_feature3"
+  type: "Python"
+  bottom: "s1_img_feature2"
+  top: "s1_img_feature3"
+  python_param {
+    module: "Upscale2DLayer"
+    layer: "Upscale2DLayer"
+    param_str: "{\'scale_factor\': 2}"
+  }
+}
+layer {
+  name: "s2_input"
+  type: "Concat"
+  bottom: "s1_img_output"
+  bottom: "s1_img_heatmap"
+  bottom: "s1_img_feature3"
+  top: "s2_input"
+}
+layer {
+  name: "s2_input_batch"
+  type: "BatchNorm"
+  bottom: "s2_input"
+  top: "s2_input_batch"
+}
+layer {
+  name: "s2_conv1_1"
+  type: "Convolution"
+  bottom: "s2_input_batch"
+  top: "s2_conv1_1"
+  convolution_param {
+    num_output: 64
+    pad: 1
+    kernel_size: 3
+    group: 1
+    stride: 1
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "s2_relu1_1"
+  type: "ReLU"
+  bottom: "s2_conv1_1"
+  top: "s2_conv1_1"
+}
+layer {
+  name: "s2_batch1_1"
+  type: "BatchNorm"
+  bottom: "s2_conv1_1"
+  top: "s2_batch1_1"
+}
+layer {
+  name: "s2_conv1_2"
+  type: "Convolution"
+  bottom: "s2_batch1_1"
+  top: "s2_conv1_2"
+  convolution_param {
+    num_output: 64
+    pad: 1
+    kernel_size: 3
+    group: 1
+    stride: 1
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "s2_relu1_2"
+  type: "ReLU"
+  bottom: "s2_conv1_2"
+  top: "s2_conv1_2"
+}
+layer {
+  name: "s2_batch1_2"
+  type: "BatchNorm"
+  bottom: "s2_conv1_2"
+  top: "s2_batch1_2"
+}
+layer {
+  name: "s2_pool1"
+  type: "Pooling"
+  bottom: "s2_batch1_2"
+  top: "s2_pool1"
+  pooling_param {
+    pool: MAX
+    kernel_size: 2
+    stride: 2
+  }
+}
+layer {
+  name: "s2_conv2_1"
+  type: "Convolution"
+  bottom: "s2_pool1"
+  top: "s2_conv2_1"
+  convolution_param {
+    num_output: 128
+    pad: 1
+    kernel_size: 3
+    group: 1
+    stride: 1
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "s2_relu2_1"
+  type: "ReLU"
+  bottom: "s2_conv2_1"
+  top: "s2_conv2_1"
+}
+layer {
+  name: "s2_batch2_1"
+  type: "BatchNorm"
+  bottom: "s2_conv2_1"
+  top: "s2_batch2_1"
+}
+layer {
+  name: "s2_conv2_2"
+  type: "Convolution"
+  bottom: "s2_batch2_1"
+  top: "s2_conv2_2"
+  convolution_param {
+    num_output: 128
+    pad: 1
+    kernel_size: 3
+    group: 1
+    stride: 1
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "s2_relu2_2"
+  type: "ReLU"
+  bottom: "s2_conv2_2"
+  top: "s2_conv2_2"
+}
+layer {
+  name: "s2_batch2_2"
+  type: "BatchNorm"
+  bottom: "s2_conv2_2"
+  top: "s2_batch2_2"
+}
+layer {
+  name: "s2_pool2"
+  type: "Pooling"
+  bottom: "s2_batch2_2"
+  top: "s2_pool2"
+  pooling_param {
+    pool: MAX
+    kernel_size: 2
+    stride: 2
+  }
+}
+layer {
+  name: "s2_conv3_1"
+  type: "Convolution"
+  bottom: "s2_pool2"
+  top: "s2_conv3_1"
+  convolution_param {
+    num_output: 256
+    pad: 1
+    kernel_size: 3
+    group: 1
+    stride: 1
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "s2_relu3_1"
+  type: "ReLU"
+  bottom: "s2_conv3_1"
+  top: "s2_conv3_1"
+}
+layer {
+  name: "s2_batch3_1"
+  type: "BatchNorm"
+  bottom: "s2_conv3_1"
+  top: "s2_batch3_1"
+}
+layer {
+  name: "s2_conv3_2"
+  type: "Convolution"
+  bottom: "s2_batch3_1"
+  top: "s2_conv3_2"
+  convolution_param {
+    num_output: 256
+    pad: 1
+    kernel_size: 3
+    group: 1
+    stride: 1
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "s2_relu3_2"
+  type: "ReLU"
+  bottom: "s2_conv3_2"
+  top: "s2_conv3_2"
+}
+layer {
+  name: "s2_batch3_2"
+  type: "BatchNorm"
+  bottom: "s2_conv3_2"
+  top: "s2_batch3_2"
+}
+layer {
+  name: "s2_pool3"
+  type: "Pooling"
+  bottom: "s2_batch3_2"
+  top: "s2_pool3"
+  pooling_param {
+    pool: MAX
+    kernel_size: 2
+    stride: 2
+  }
+}
+layer {
+  name: "s2_conv4_1"
+  type: "Convolution"
+  bottom: "s2_pool3"
+  top: "s2_conv4_1"
+  convolution_param {
+    num_output: 512
+    pad: 1
+    kernel_size: 3
+    group: 1
+    stride: 1
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "s2_relu4_1"
+  type: "ReLU"
+  bottom: "s2_conv4_1"
+  top: "s2_conv4_1"
+}
+layer {
+  name: "s2_batch4_1"
+  type: "BatchNorm"
+  bottom: "s2_conv4_1"
+  top: "s2_batch4_1"
+}
+layer {
+  name: "s2_conv4_2"
+  type: "Convolution"
+  bottom: "s2_batch4_1"
+  top: "s2_conv4_2"
+  convolution_param {
+    num_output: 512
+    pad: 1
+    kernel_size: 3
+    group: 1
+    stride: 1
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "s2_relu4_2"
+  type: "ReLU"
+  bottom: "s2_conv4_2"
+  top: "s2_conv4_2"
+}
+layer {
+  name: "s2_batch4_2"
+  type: "BatchNorm"
+  bottom: "s2_conv4_2"
+  top: "s2_batch4_2"
+}
+layer {
+  name: "s2_pool4"
+  type: "Pooling"
+  bottom: "s2_batch4_2"
+  top: "s2_pool4"
+  pooling_param {
+    pool: MAX
+    kernel_size: 2
+    stride: 2
+  }
+}
+layer {
+  name: "s2_fc1_dropout"
+  type: "Flatten"
+  bottom: "s2_pool4"
+  top: "s2_fc1_dropout"
+}
+layer {
+  name: "s2_fc1"
+  type: "InnerProduct"
+  bottom: "s2_fc1_dropout"
+  top: "s2_fc1"
+  inner_product_param {
+    num_output: 256
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "s2_fc1_relu"
+  type: "ReLU"
+  bottom: "s2_fc1"
+  top: "s2_fc1"
+}
+layer {
+  name: "s2_fc1_batch"
+  type: "BatchNorm"
+  bottom: "s2_fc1"
+  top: "s2_fc1_batch"
+}
+layer {
+  name: "s2_output"
+  type: "InnerProduct"
+  bottom: "s2_fc1_batch"
+  top: "s2_output"
+  inner_product_param {
+    num_output: 136
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+layer {
+  name: "Eltwise1"
+  type: "Eltwise"
+  bottom: "s2_output"
+  bottom: "s1_landmarks_affine"
+  top: "Eltwise1"
+}
+layer {
+  name: "s2_landmarks"
+  type: "Python"
+  bottom: "Eltwise1"
+  bottom: "s1_transform_params"
+  top: "s2_landmarks"
+  python_param {
+    module: "LandmarkTranFormLayer"
+    layer: "LandmarkTranFormLayer"
+    param_str: "{\'inverse\': False}"
+  }
+}
+layer {
   name: "loss"
   type: "Python"
-  bottom: "output"
+  bottom: "s2_landmarks"
   bottom: "label"
   top: "loss"
   loss_weight: 1.0

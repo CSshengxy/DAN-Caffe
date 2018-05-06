@@ -56,6 +56,7 @@ class ImageServer(object):
         # 如果img只有一张图片的话 增加一个维度
         if (len(imageServer.imgs.shape) == 3):
             imageServer.imgs = imageServer.imgs[:, np.newaxis]
+            print('only one sample')
 
         return imageServer
 

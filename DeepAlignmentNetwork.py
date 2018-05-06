@@ -8,18 +8,17 @@ import os.path as osp
 import matplotlib.pyplot as plt
 from copy import copy
 import tools
-# import h5py
 
 
 sys.path.append('./DesignLayer')
 
 from InitLandmark import InitLandmark
 from SumOfSquaredLossLayer import SumOfSquaredLossLayer
-# from TransformParamsLayer import TransformParamsLayer
-# from AffineTransformLayer import AffineTransformLayer
-# from LandmarkTranFormLayer import LandmarkTranFormLayer
-# from GetHeatMapLayer import GetHeatMapLayer
-# from Upscale2DLayer import Upscale2DLayer
+from TransformParamsLayer import TransformParamsLayer
+from AffineTransformLayer import AffineTransformLayer
+from LandmarkTranFormLayer import LandmarkTranFormLayer
+from GetHeatMapLayer import GetHeatMapLayer
+from Upscale2DLayer import Upscale2DLayer
 
 
 def conv_relu(bottom, ks, nout, stride=1, pad=1, group=1):
@@ -42,27 +41,10 @@ def fc_relu(bottom, nout):
 
 class DeepAlignmentNetwork(object):
     def __init__(self, nStages):
-        self.batchsize = 64
+        self.batchsize = 20
 
         self.nStages = nStages
         self.workdir = './'
-
-    # def write_hdf5(self):
-    #     dirname = os.path.abspath('./data')
-    #     train_filename = os.path.join(dirname, 'train_data.h5')
-    #     val_filename = os.path.join(dirname, 'val_data.h5')
-    #
-    #     with h5py.File(train_filename, 'w') as f:
-    #         f['data'] = self.Xtrain.astype(np.float32)
-    #         f['label'] = self.Ytrain.astype(np.float32)
-    #     with open(os.path.join(dirname, 'train_data_h5.txt'), 'w') as f:
-    #         f.write(train_filename + '\n')
-    #
-    #     with h5py.File(val_filename, 'w') as f:
-    #         f.create_dataset('data', data=self.Xvalid.astype(np.float64))
-    #         f.create_dataset('label', data=self.Yvalid.astype(np.float64))
-    #     with open(os.path.join(dirname, 'val_data_h5.txt'), 'w') as f:
-    #         f.write(val_filename + '\n')
 
     def generate_data_lmdb(self, imgs, train=True):
         import lmdb
@@ -163,7 +145,9 @@ class DeepAlignmentNetwork(object):
         # 对于train 为 nSamples*3*height*width的矩阵
         # 对于valid 为 nSamples*1*height*width的矩阵
         self.Xtrain = trainSet.imgs
+        print(self.Xtrain.shape)
         self.Xvalid = validationSet.imgs
+        print(self.Xtrain.shape)
 
         # Ytrain和Yvalid都是一个nSamples*136的矩阵，存储了各自的gtLandmarks
         self.Ytrain = self.getLabelsForDataset(trainSet)
@@ -223,51 +207,53 @@ class DeepAlignmentNetwork(object):
 
         net.s1_output = L.InnerProduct(net.s1_fc1_batch, num_output=136,
                                 bias_filler=dict(type='constant', value=0))
-        net.s1_landmarks = L.Python(net.s1_output, module="InitLandmark",
+        net.temp = L.Reshape(net.s1_output, reshape_param={'shape':{'dim':[-1,136]}})
+        net.s1_landmarks = L.Python(net.temp, module="InitLandmark",
                                         layer="InitLandmark",
                                         param_str=str(dict(initlandmarks=self.initLandmarks.tolist())))
 
         if self.nStages == 2:
-            addDANStage(net)
-            net.output = net.s2_landmarks
+            self.addDANStage(net, istrain)
+            net.loss = L.Python(net.s2_landmarks, net.label, module="SumOfSquaredLossLayer",
+                                            layer="SumOfSquaredLossLayer",
+                                            loss_weight=1)
         else:
-            net.output = net.s1_landmarks
-
-        net.loss = L.Python(net.output, net.label, module="SumOfSquaredLossLayer",
-                                        layer="SumOfSquaredLossLayer",
-                                        loss_weight=1)
+            net.loss = L.Python(net.s1_landmarks, net.label, module="SumOfSquaredLossLayer",
+                                            layer="SumOfSquaredLossLayer",
+                                            loss_weight=1)
         return str(net.to_proto())
 
-    def addDANStage(self, net):
+    def addDANStage(self, net, istrain):
         #CONNNECTION LAYERS OF PREVIOUS STAGE
         # TRANSFORM ESTIMATION
-        net.s1_transform_params = L.Python(net.s1_landmarks, module="LandmarkTranFormLayer",
-                                            layer="LandmarkTranFormLayer",
-                                            param_str=str(dict(mean_shape=self.initlandmarks.tolist())))
+        net.s1_transform_params = L.Python(net.s1_landmarks, module="TransformParamsLayer",
+                                            layer="TransformParamsLayer",
+                                            param_str=str(dict(mean_shape=self.initLandmarks.tolist())))
         # IMAGE TRANSFORM
         net.s1_img_output = L.Python(net.data, net.s1_transform_params,
                                         module="AffineTransformLayer",
                                         layer="AffineTransformLayer")
         # LANDMARK TRANSFORM
         net.s1_landmarks_affine = L.Python(net.s1_landmarks, net.s1_transform_params,
-                                            module="LandmarkTransformLayer",
-                                            layer="LandmarkTransformLayer")
+                                            module="LandmarkTranFormLayer",
+                                            layer="LandmarkTranFormLayer",
+                                            param_str=str(dict(inverse=False)))
         # HEATMAP GENERATION
         net.s1_img_heatmap = L.Python(net.s1_landmarks_affine, module="GetHeatMapLayer",
                                         layer="GetHeatMapLayer")
         # FEATURE GENERATION
         # 使用56*56而不是112*112的原因是，可以减少参数，因为两者最终表现没有太大差别
-        net.s1_img_feature = fc_relu(net.s1_fc1_batch, 56*56)
-        net.s1_img_feature = L.Reshape(net.s1_img_feature, shape=dict(dim=[-1, 1, 56, 56]))
-        net.s1_img_feature = L.Python(net.s1_img_feature, module="Upscale2DLayer", layer="Upscale2DLayer", param_str=str(dict(scale_factor=2)))
+        net.s1_img_feature1,  net.s1_img_feature1_relu= fc_relu(net.s1_fc1_batch, 56*56)
+        net.s1_img_feature2 = L.Reshape(net.s1_img_feature1_relu, reshape_param={'shape':{'dim':[-1,1,56,56]}})
+        net.s1_img_feature3 = L.Python(net.s1_img_feature2, module="Upscale2DLayer", layer="Upscale2DLayer", param_str=str(dict(scale_factor=2)))
 
         # CURRENT STAGE
-        net.s2_input = L.Concat(net.s1_img_output, net.s1_img_heatmap, net.s1_img_feature)
+        net.s2_input = L.Concat(net.s1_img_output, net.s1_img_heatmap, net.s1_img_feature3)
         net.s2_input_batch = L.BatchNorm(net.s2_input)
 
         net.s2_conv1_1, net.s2_relu1_1 = conv_relu(net.s2_input_batch, 3, 64)
         net.s2_batch1_1 = L.BatchNorm(net.s2_relu1_1)
-        net.s2_conv1_2, s2_net.relu1_2 = conv_relu(net.s2_batch1_1, 3, 64)
+        net.s2_conv1_2, net.s2_relu1_2 = conv_relu(net.s2_batch1_1, 3, 64)
         net.s2_batch1_2 = L.BatchNorm(net.s2_relu1_2)
         net.s2_pool1 = max_pool(net.s2_batch1_2, 2)
 
@@ -294,16 +280,17 @@ class DeepAlignmentNetwork(object):
             net.s2_fc1_dropout = L.Dropout(net.s2_pool4_flatten, dropout_ratio=0.5, in_place=True)
             # , include=dict(phase=caffe.TRAIN)
         else:
-            net.s1_fc1_dropout = net.s2_pool4_flatten
+            net.s2_fc1_dropout = net.s2_pool4_flatten
         net.s2_fc1, net.s2_fc1_relu = fc_relu(net.s2_fc1_dropout, 256)
-        net.s2_fc1_batch = L.BatchNorm(net.s2_fce_relu)
+        net.s2_fc1_batch = L.BatchNorm(net.s2_fc1_relu)
 
         net.s2_output = L.InnerProduct(net.s2_fc1_batch, num_output=136,
                                 bias_filler=dict(type='constant', value=0))
         net.s2_landmarks = L.Eltwise(net.s2_output, net.s1_landmarks_affine)
         net.s2_landmarks = L.Python(net.s2_landmarks, net.s1_transform_params,
                                             module="LandmarkTranFormLayer",
-                                            layer="LandmarkTranFormLayer")
+                                            layer="LandmarkTranFormLayer",
+                                            param_str=str(dict(inverse=False)))
 
     def get_prototxt(self, learning_rate = 0.001, num_epochs=100):
         self.solverprototxt = tools.CaffeSolver(trainnet_prototxt_path = osp.join(self.workdir, "trainnet.prototxt"), testnet_prototxt_path = osp.join(self.workdir, "valnet.prototxt"))

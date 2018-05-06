@@ -9,7 +9,7 @@ momentum: 0.9
 snapshot: 2500
 snapshot_prefix: "snapshot"
 test_initialization: false
-test_interval: 2560
+test_interval: 1200
 test_iter: 100
 test_net: "./valnet.prototxt"
 train_net: "./trainnet.prototxt"
