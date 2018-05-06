@@ -1,24 +1,8 @@
 # -*- coding: UTF-8 -*-
 import caffe
 from caffe import layers as L, params as P, to_proto
-import numpy as np
-import sys
-import os
 import os.path as osp
-import matplotlib.pyplot as plt
-from copy import copy
 import tools
-
-
-sys.path.append('./DesignLayer')
-
-from InitLandmark import InitLandmark
-from SumOfSquaredLossLayer import SumOfSquaredLossLayer
-from TransformParamsLayer import TransformParamsLayer
-from AffineTransformLayer import AffineTransformLayer
-from LandmarkTranFormLayer import LandmarkTranFormLayer
-from GetHeatMapLayer import GetHeatMapLayer
-from Upscale2DLayer import Upscale2DLayer
 
 
 def conv_relu(bottom, ks, nout, stride=1, pad=1, group=1):
@@ -38,128 +22,16 @@ def fc_relu(bottom, nout):
                             bias_filler=dict(type='constant', value=0))
     return fc, L.ReLU(fc, in_place=True)
 
-
 class DeepAlignmentNetwork(object):
     def __init__(self, nStages):
         self.batchsize = 20
-
         self.nStages = nStages
         self.workdir = './'
-
-    def generate_data_lmdb(self, imgs, train=True):
-        import lmdb
-        from caffe.proto import caffe_pb2
-        lmdb_file = './data/data_val_lmdb'
-        if train:
-            lmdb_file = './data/data_train_lmdb'
-        os.system('rm -rf '+ lmdb_file)
-        # lmdb对于数据进行的是先缓存后一次性写入从而提高效率，因此定义一个batch_size控制每次写入的量。
-        batch_size = 200
-        # map_size定义最大空间
-        lmdb_env = lmdb.open(lmdb_file, map_size=int(1e12))
-        # 打开数据库的句柄
-        lmdb_txn = lmdb_env.begin(write=True)
-        # 这是caffe中定义数据的重要类型
-        datum = caffe_pb2.Datum()
-        nSamples = imgs.shape[0]
-        label = 0
-        for i in range(nSamples):
-            data = imgs[i]
-            datum = caffe.io.array_to_datum(data, label)
-            keystr = '{:0>8d}'.format(i)
-            lmdb_txn.put(keystr.encode('ascii'), datum.SerializeToString())
-
-            if (i+1) % batch_size == 0:
-                lmdb_txn.commit()
-                lmdb_txn = lmdb_env.begin(write=True)
-                print('data batch {} writen'.format(i+1))
-
-        lmdb_txn.commit()
-        lmdb_env.close()
-
-    def generate_label_lmdb(self, labels, train=True):
-        import lmdb
-        from caffe.proto import caffe_pb2
-        all_labels = []
-        key = 0
-        lmdb_file = './data/label_val_lmdb'
-        if train:
-            lmdb_file = './data/label_train_lmdb'
-        os.system('rm -rf '+ lmdb_file)
-        batch_size = 200
-        lmdb_env = lmdb.open(lmdb_file, map_size=int(1e12))
-        lmdb_txn = lmdb_env.begin(write=True)
-        datum = caffe_pb2.Datum()
-        nSamples = labels.shape[0]
-        label = 0
-        for i in range(nSamples):
-            datum.channels = labels[i].shape[0]
-            datum.height = 1
-            datum.width = 1
-            data = labels[i].reshape(datum.channels, 1, 1)
-            datum = caffe.io.array_to_datum(data, label)
-            keystr = '{:0>8d}'.format(i)
-            lmdb_txn.put(keystr.encode('ascii'), datum.SerializeToString())
-
-            if (i+1) % batch_size == 0:
-                lmdb_txn.commit()
-                lmdb_txn = lmdb_env.begin(write=True)
-                print('label batch {} writen'.format(i+1))
-
-        lmdb_txn.commit()
-        lmdb_env.close()
-
-
-    def generate_lmdb(self):
-        self.generate_data_lmdb(self.Xtrain, train=True)
-        self.generate_data_lmdb(self.Xvalid, train=False)
-        self.generate_label_lmdb(self.Ytrain, train=True)
-        self.generate_label_lmdb(self.Yvalid, train=False)
-
-    def getLabelsForDataset(self, imageServer):
-        """生成当前imageServer的initLandmarks和gtLandmarks组合
-
-        Args:
-            imageServer: 欲处理的imageServer
-        Return:
-            一个nSamples*2*nLandmarks*2的数组，存储了nSamples*nLandmarks*2维度的initLandmarks和gtLandmarks
-        """
-        nSamples = imageServer.gtLandmarks.shape[0]
-        nLandmarks = imageServer.gtLandmarks.shape[1]
-
-        y = np.zeros((nSamples, nLandmarks*2), dtype=np.float32)
-        for i in range(nSamples):
-            y[i,:] = imageServer.gtLandmarks[i].flatten()
-
-        return y
 
     def loadData(self, trainSet, validationSet):
         """从trainSet,validationSet中读入imgServer的信息
 
         """
-        self.nSamples = trainSet.gtLandmarks.shape[0]
-        self.imageHeight = trainSet.imgSize[0]
-        self.imageWidth = trainSet.imgSize[1]
-        self.nChannels = trainSet.imgs.shape[1]
-
-        # 对于train 为 nSamples*3*height*width的矩阵
-        # 对于valid 为 nSamples*1*height*width的矩阵
-        self.Xtrain = trainSet.imgs
-        print(self.Xtrain.shape)
-        self.Xvalid = validationSet.imgs
-        print(self.Xtrain.shape)
-
-        # Ytrain和Yvalid都是一个nSamples*136的矩阵，存储了各自的gtLandmarks
-        self.Ytrain = self.getLabelsForDataset(trainSet)
-        self.Yvalid = self.getLabelsForDataset(validationSet)
-
-        # 测试index和验证index
-        # self.testIdxsTrainSet = range(len(self.Xvalid))
-        # self.testIdxsValidSet = range(len(self.Xvalid))
-
-        # 由imageServer中的扰动函数和归一化函数得到的meanImg和stdDevImg
-        self.meanImg = trainSet.meanImg
-        self.stdDevImg = trainSet.stdDevImg
         self.initLandmarks = trainSet.initLandmarks[0]
         print("load data finished.")
 
@@ -278,7 +150,6 @@ class DeepAlignmentNetwork(object):
         net.s2_pool4_flatten = L.Flatten(net.s2_pool4)
         if istrain:
             net.s2_fc1_dropout = L.Dropout(net.s2_pool4_flatten, dropout_ratio=0.5, in_place=True)
-            # , include=dict(phase=caffe.TRAIN)
         else:
             net.s2_fc1_dropout = net.s2_pool4_flatten
         net.s2_fc1, net.s2_fc1_relu = fc_relu(net.s2_fc1_dropout, 256)
@@ -303,38 +174,3 @@ class DeepAlignmentNetwork(object):
         with open(osp.join(self.workdir, 'valnet.prototxt'), 'w') as f:
             f.write(self.createCNN(False))
         print('get prototxt finished.')
-
-
-    def train(self):
-        caffe.set_mode_gpu()
-        caffe.set_device(0)
-        solver = caffe.AdamSolver(osp.join(self.workdir, 'solver.prototxt'))
-        print('Adam Solver finished------------------------')
-        # 如果模型定义时有区分training和validation的不同phase，那么在solver中实际上是存在
-        # 两个表示网络的成员变量：solver.net和solver.test_nets，注意，前者直接就是一个Net的对象，
-        # 而后者是Net对象的列表，如果像GoogleNet那样，存在一个training和一个testing(validation
-        # 而不是真正的testing，做测试的文件其实是deploy.prototxt)，那么应该通过solver.test_nets[0]
-        # 来引用这个测试网络；另外，测试网络和训练网络应该是共享中间的特征网络层权重，
-        # 只有那些标出include { phase: TRAIN }或者include { phase: TEST }的网络层有区分；
-        # 训练数据train_X, train_Y必须是numpy中的float32浮点矩阵，
-        # train_X维度是sample_num*channels*height*width，
-        # train_Y是sample_num维度的label向量，
-        # 这里sample_num必须是trainning输入batch_size的整数倍，
-        # 为了方便，我在实际使用时每次迭代只在整个训练集中随机选取一个batch_size的图片数据放进去；
-        # solver.net.set_input_arrays(self.Xtrain, self.Ytrain)
-        # solver.test_nets[0].set_input_arrays(self.Xvalid, self.Yvalid)
-        # solver.step(1)即迭代一次，包括了forward和backward，solver.iter标识了当前的迭代次数；
-        solver.step(1)
-
-
-
-        # data = np.random.randint(0, 256, (512, 3, 32, 32)).astype("float32")
-        # net.blobs['data'].data = data
-        # label = np.random.randint(0, 10, (512, 1, 1, 1)).astype("float32")
-        # net.blobs['label'].data = label
-
-
-        # data = np.random.randint(0, 256, (512, 3, 32, 32)).astype("float32")
-        # net.blobs['data'].data[...] = data
-        # label = np.random.randint(0, 10, (512, 1, 1, 1)).astype("float32")
-        # net.blobs['label'].data[...] = label

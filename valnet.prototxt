@@ -4,7 +4,7 @@ layer {
   top: "data"
   data_param {
     source: "./data/data_val_lmdb"
-    batch_size: 30
+    batch_size: 20
     backend: LMDB
   }
 }
@@ -14,7 +14,7 @@ layer {
   top: "label"
   data_param {
     source: "./data/label_val_lmdb"
-    batch_size: 30
+    batch_size: 20
     backend: LMDB
   }
 }
