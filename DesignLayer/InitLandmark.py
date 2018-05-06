@@ -12,7 +12,10 @@ class InitLandmark(caffe.Layer):
         """
         pass
     def forward(self, bottom, top):
-        top[0].data = bottom[0].data + self.init_landmarks
+        print(bottom[0].data.shape)
+        print(self.initlandmarks.shape)
+        top[0].data[...] = bottom[0].data[...] + self.initlandmarks
+
 
     def backward(self, top, propagate_down, bottom):
         """

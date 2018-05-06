@@ -1,7 +1,5 @@
 *.pyc
-/data/images/
-/data/*.npz
+/data/
 !/data/meanFaceShape.npz
-/data/*.h5
-/data/*.txt
+!/data/*.pkl
 *.prototxt

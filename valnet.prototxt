@@ -1,11 +1,21 @@
 layer {
   name: "data"
-  type: "HDF5Data"
+  type: "Data"
   top: "data"
-  top: "label"
-  hdf5_data_param {
-    source: "./data/val_data_h5.txt"
+  data_param {
+    source: "./data/data_val_lmdb"
     batch_size: 64
+    backend: LMDB
+  }
+}
+layer {
+  name: "label"
+  type: "Data"
+  top: "label"
+  data_param {
+    source: "./data/label_val_lmdb"
+    batch_size: 64
+    backend: LMDB
   }
 }
 layer {

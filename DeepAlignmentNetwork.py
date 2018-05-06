@@ -8,7 +8,7 @@ import os.path as osp
 import matplotlib.pyplot as plt
 from copy import copy
 import tools
-import h5py
+# import h5py
 
 
 sys.path.append('./DesignLayer')
@@ -47,22 +47,92 @@ class DeepAlignmentNetwork(object):
         self.nStages = nStages
         self.workdir = './'
 
-    def write_hdf5(self):
-        dirname = os.path.abspath('./data')
-        train_filename = os.path.join(dirname, 'train_data.h5')
-        val_filename = os.path.join(dirname, 'val_data.h5')
+    # def write_hdf5(self):
+    #     dirname = os.path.abspath('./data')
+    #     train_filename = os.path.join(dirname, 'train_data.h5')
+    #     val_filename = os.path.join(dirname, 'val_data.h5')
+    #
+    #     with h5py.File(train_filename, 'w') as f:
+    #         f['data'] = self.Xtrain.astype(np.float32)
+    #         f['label'] = self.Ytrain.astype(np.float32)
+    #     with open(os.path.join(dirname, 'train_data_h5.txt'), 'w') as f:
+    #         f.write(train_filename + '\n')
+    #
+    #     with h5py.File(val_filename, 'w') as f:
+    #         f.create_dataset('data', data=self.Xvalid.astype(np.float64))
+    #         f.create_dataset('label', data=self.Yvalid.astype(np.float64))
+    #     with open(os.path.join(dirname, 'val_data_h5.txt'), 'w') as f:
+    #         f.write(val_filename + '\n')
 
-        with h5py.File(train_filename, 'w') as f:
-            f['data'] = self.Xtrain.astype(np.float32)
-            f['label'] = self.Ytrain.astype(np.float32)
-        with open(os.path.join(dirname, 'train_data_h5.txt'), 'w') as f:
-            f.write(train_filename + '\n')
+    def generate_data_lmdb(self, imgs, train=True):
+        import lmdb
+        from caffe.proto import caffe_pb2
+        lmdb_file = './data/data_val_lmdb'
+        if train:
+            lmdb_file = './data/data_train_lmdb'
+        os.system('rm -rf '+ lmdb_file)
+        # lmdb对于数据进行的是先缓存后一次性写入从而提高效率，因此定义一个batch_size控制每次写入的量。
+        batch_size = 200
+        # map_size定义最大空间
+        lmdb_env = lmdb.open(lmdb_file, map_size=int(1e12))
+        # 打开数据库的句柄
+        lmdb_txn = lmdb_env.begin(write=True)
+        # 这是caffe中定义数据的重要类型
+        datum = caffe_pb2.Datum()
+        nSamples = imgs.shape[0]
+        label = 0
+        for i in range(nSamples):
+            data = imgs[i]
+            datum = caffe.io.array_to_datum(data, label)
+            keystr = '{:0>8d}'.format(i)
+            lmdb_txn.put(keystr.encode('ascii'), datum.SerializeToString())
 
-        with h5py.File(val_filename, 'w') as f:
-            f.create_dataset('data', data=self.Xvalid.astype(np.float32))
-            f.create_dataset('label', data=self.Yvalid.astype(np.float32))
-        with open(os.path.join(dirname, 'val_data_h5.txt'), 'w') as f:
-            f.write(val_filename + '\n')
+            if (i+1) % batch_size == 0:
+                lmdb_txn.commit()
+                lmdb_txn = lmdb_env.begin(write=True)
+                print('data batch {} writen'.format(i+1))
+
+        lmdb_txn.commit()
+        lmdb_env.close()
+
+    def generate_label_lmdb(self, labels, train=True):
+        import lmdb
+        from caffe.proto import caffe_pb2
+        all_labels = []
+        key = 0
+        lmdb_file = './data/label_val_lmdb'
+        if train:
+            lmdb_file = './data/label_train_lmdb'
+        os.system('rm -rf '+ lmdb_file)
+        batch_size = 200
+        lmdb_env = lmdb.open(lmdb_file, map_size=int(1e12))
+        lmdb_txn = lmdb_env.begin(write=True)
+        datum = caffe_pb2.Datum()
+        nSamples = labels.shape[0]
+        label = 0
+        for i in range(nSamples):
+            datum.channels = labels[i].shape[0]
+            datum.height = 1
+            datum.width = 1
+            data = labels[i].reshape(datum.channels, 1, 1)
+            datum = caffe.io.array_to_datum(data, label)
+            keystr = '{:0>8d}'.format(i)
+            lmdb_txn.put(keystr.encode('ascii'), datum.SerializeToString())
+
+            if (i+1) % batch_size == 0:
+                lmdb_txn.commit()
+                lmdb_txn = lmdb_env.begin(write=True)
+                print('label batch {} writen'.format(i+1))
+
+        lmdb_txn.commit()
+        lmdb_env.close()
+
+
+    def generate_lmdb(self):
+        self.generate_data_lmdb(self.Xtrain, train=True)
+        self.generate_data_lmdb(self.Xvalid, train=False)
+        self.generate_label_lmdb(self.Ytrain, train=True)
+        self.generate_label_lmdb(self.Yvalid, train=False)
 
     def getLabelsForDataset(self, imageServer):
         """生成当前imageServer的initLandmarks和gtLandmarks组合
@@ -75,9 +145,9 @@ class DeepAlignmentNetwork(object):
         nSamples = imageServer.gtLandmarks.shape[0]
         nLandmarks = imageServer.gtLandmarks.shape[1]
 
-        y = np.zeros((nSamples, 2, nLandmarks, 2), dtype=np.float32)
-        y[:, 0] = imageServer.initLandmarks
-        y[:, 1] = imageServer.gtLandmarks
+        y = np.zeros((nSamples, nLandmarks*2), dtype=np.float32)
+        for i in range(nSamples):
+            y[i,:] = imageServer.gtLandmarks[i].flatten()
 
         return y
 
@@ -90,18 +160,18 @@ class DeepAlignmentNetwork(object):
         self.imageWidth = trainSet.imgSize[1]
         self.nChannels = trainSet.imgs.shape[1]
 
-        # 对于train 为 1*3*height*width的矩阵
-        # 对于valid 为 1*1*height*width的矩阵
+        # 对于train 为 nSamples*3*height*width的矩阵
+        # 对于valid 为 nSamples*1*height*width的矩阵
         self.Xtrain = trainSet.imgs
         self.Xvalid = validationSet.imgs
 
-        # Ytrain和Yvalid都是一个nSamples*2*nLandmarks*2的矩阵，存储了各自的initLandmarks和gtLandmarks
+        # Ytrain和Yvalid都是一个nSamples*136的矩阵，存储了各自的gtLandmarks
         self.Ytrain = self.getLabelsForDataset(trainSet)
         self.Yvalid = self.getLabelsForDataset(validationSet)
 
         # 测试index和验证index
-        self.testIdxsTrainSet = range(len(self.Xvalid))
-        self.testIdxsValidSet = range(len(self.Xvalid))
+        # self.testIdxsTrainSet = range(len(self.Xvalid))
+        # self.testIdxsValidSet = range(len(self.Xvalid))
 
         # 由imageServer中的扰动函数和归一化函数得到的meanImg和stdDevImg
         self.meanImg = trainSet.meanImg
@@ -112,9 +182,13 @@ class DeepAlignmentNetwork(object):
     def createCNN(self, istrain):
         net = caffe.NetSpec()
         if istrain:
-            net.data, net.label = L.HDF5Data(batch_size=self.batchsize, source="./data/train_data_h5.txt", ntop=2)
+            # net.data, net.label = L.HDF5Data(batch_size=100, source="./data/val_data_h5.txt", ntop=2)
+            net.data = L.Data(source='./data/data_train_lmdb', backend=P.Data.LMDB, batch_size=self.batchsize, ntop=1)
+            net.label = L.Data(source='./data/label_train_lmdb', backend=P.Data.LMDB, batch_size=self.batchsize, ntop=1)
         else:
-            net.data, net.label = L.HDF5Data(batch_size=self.batchsize, source="./data/val_data_h5.txt", ntop=2)
+            # net.data, net.label = L.HDF5Data(batch_size=100, source="./data/val_data_h5.txt", ntop=2)
+            net.data = L.Data(source='./data/data_val_lmdb', backend=P.Data.LMDB, batch_size=self.batchsize, ntop=1)
+            net.label = L.Data(source='./data/label_val_lmdb', backend=P.Data.LMDB, batch_size=self.batchsize, ntop=1)
 
         # STAGE 1
         net.s1_conv1_1, net.s1_relu1_1 = conv_relu(net.data, 3, 64)
