@@ -24,7 +24,7 @@ def fc_relu(bottom, nout):
 
 class DeepAlignmentNetwork(object):
     def __init__(self, nStages):
-        self.batchsize = 20
+        self.batchsize = 10
         self.nStages = nStages
         self.workdir = './'
 
@@ -32,6 +32,7 @@ class DeepAlignmentNetwork(object):
         """从trainSet,validationSet中读入imgServer的信息
 
         """
+        self.nSamples = trainSet.initLandmarks.shape[0]
         self.initLandmarks = trainSet.initLandmarks[0]
         print("load data finished.")
 
@@ -167,6 +168,7 @@ class DeepAlignmentNetwork(object):
         self.solverprototxt = tools.CaffeSolver(trainnet_prototxt_path = osp.join(self.workdir, "trainnet.prototxt"), testnet_prototxt_path = osp.join(self.workdir, "valnet.prototxt"))
         self.solverprototxt.sp['base_lr'] = str(learning_rate)
         self.solverprototxt.sp['test_interval'] = str(self.batchsize * 40)
+        # self.solverprototxt.sp['test_iter'] = str(num_epochs*self.nSamples/self.batchsize)
         self.solverprototxt.write(osp.join(self.workdir, 'solver.prototxt'))
         # write train_val net.
         with open(osp.join(self.workdir, 'trainnet.prototxt'), 'w') as f:

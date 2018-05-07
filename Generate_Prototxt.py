@@ -14,4 +14,4 @@ training = DeepAlignmentNetwork(2)
 
 training.loadData(trainSet, validationSet)
 
-training.get_prototxt()
+training.get_prototxt(learning_rate = 0.0004, num_epochs=100)
