@@ -1,32 +1,17 @@
+#!/usr/bin/env python3.5
+# -*- coding: UTF-8 -*-
+
 import numpy as np
 from matplotlib import pyplot as plt
 import caffe
 from ImageServer import ImageServer
-
-Channels = 1
-imageHeight = 112
-imageWidth = 112
-
-caffe.set_mode_gpu()
-caffe.set_device(0)
-model_def = './trainnet.prototxt'
-model_weights = './snapshot_iter_2500.caffemodel'
-
-net = caffe.Net(model_def,      # defines the structure of the model
-                model_weights,  # contains the trained weights
-                caffe.TEST)     # use test mode (e.g., don't perform dropout)
-
-testSet = ImageServer.Load("commonSet.npz")
-trainSet = ImageServer.Load(datasetDir + "dataset_nimgs=38000_perturbations=[0.2, 0.2, 20, 0.25]_size=[112, 112].npz")
-
-errors = landmarkError(trainSet, testSet, normalization='centers', showResults=True)
-
-print("The test errors:")
-print(errors)
+from scipy import ndimage
+import utils
+import sys
+sys.path.append('./DesignLayer')
 
 
-
-def CropResizeRotate(self, img, inputShape, initLandmarks):
+def CropResizeRotate(img, inputShape, initLandmarks):
     A, t = utils.bestFit(initLandmarks, inputShape, True)
 
     A2 = np.linalg.inv(A)
@@ -41,11 +26,12 @@ def CropResizeRotate(self, img, inputShape, initLandmarks):
 
 def landmarkError(ReferServer, ImageServer, normalization='centers', showResults=True):
     errors = []
-    nImgs = len(imageServer.imgs)
+    nImgs = len(ImageServer.imgs)
     for i in range(nImgs):
-        initLandmarks = imageServer.initLandmarks[i]
-        gtLandmarks = imageServer.gtLandmarks[i]
-        img = imageServer.imgs[i]
+        print("process the {0}th image.......".format(i))
+        initLandmarks = ImageServer.initLandmarks[i]
+        gtLandmarks = ImageServer.gtLandmarks[i]
+        img = ImageServer.imgs[i]
 
         if img.shape[0] > 1:
             img = np.mean(img, axis=0)[np.newaxis]
@@ -57,9 +43,11 @@ def landmarkError(ReferServer, ImageServer, normalization='centers', showResults
 
         # TODO: 读入网络结构，根据当前图片获取输出
         net.blobs['data'].data[...] = inputImg
-        net.blobs['label'].data[...] = gtLandmarks
-        outputblob = net.forward()
-        output = output['s2_landmarks'][0]
+        net.blobs['label'].data[...] = gtLandmarks.reshape(136,1,1)
+        net.forward()
+        output = net.blobs['s2_landmarks'].data[0]
+        print("The {0}th image output.......".format(i))
+        print(output)
 
         landmarks = output.reshape((-1, 2))
         resLandmarks = np.dot(landmarks - transform[1], np.linalg.inv(transform[0]))
@@ -81,6 +69,27 @@ def landmarkError(ReferServer, ImageServer, normalization='centers', showResults
             plt.show()
 
     avgError = np.mean(errors)
-    print "Average error: {0}".format(avgError)
+    print("Average error: {0}".format(avgError))
 
     return errors
+
+Channels = 1
+imageHeight = 112
+imageWidth = 112
+
+caffe.set_mode_gpu()
+caffe.set_device(0)
+model_def = './trainnet.prototxt'
+model_weights = './snapshot_iter_2500.caffemodel'
+
+net = caffe.Net(model_def,
+                model_weights,
+                caffe.TEST)
+
+testSet = ImageServer.Load("./data/commonSet.npz")
+trainSet = ImageServer.Load("./data/dataset_nimgs=38000_perturbations=[0.2, 0.2, 20, 0.25]_size=[112, 112].npz")
+
+errors = landmarkError(trainSet, testSet, normalization='centers', showResults=True)
+
+print("The test errors:")
+print(errors)
