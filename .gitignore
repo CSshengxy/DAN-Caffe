@@ -3,3 +3,5 @@
 !/data/meanFaceShape.npz
 !/data/*.pkl
 *.prototxt
+*.caffemodel
+*.solverstate

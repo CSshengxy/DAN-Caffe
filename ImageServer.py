@@ -245,13 +245,13 @@ class ImageServer(object):
         print('GeneratePerturbations finished')
 
     def CropResizeRotateAll(self):
-        print('GeneratePerturbations......')
+        print('CropResizeRotateAll......')
         newImgs = []
         newGtLandmarks = []
         newInitLandmarks = []
 
         for i in range(self.initLandmarks.shape[0]):
-            print('Perturbations ......%dth image.....'%(i))
+            print('CropResizeRotate ......%dth image.....'%(i))
             tempImg, tempInit, tempGroundTruth = self.CropResizeRotate(self.imgs[i], self.initLandmarks[i], self.gtLandmarks[i])
 
             newImgs.append(tempImg)
@@ -261,7 +261,7 @@ class ImageServer(object):
         self.imgs = np.array(newImgs)
         self.initLandmarks = np.array(newInitLandmarks)
         self.gtLandmarks = np.array(newGtLandmarks)
-        print('GeneratePerturbations finished')
+        print('CropResizeRotateAll finished')
 
     def NormalizeImages(self, imageServer=None):
         self.imgs = self.imgs.astype(np.float32)

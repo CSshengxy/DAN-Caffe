@@ -167,7 +167,8 @@ class DeepAlignmentNetwork(object):
     def get_prototxt(self, learning_rate = 0.001, num_epochs=100):
         self.solverprototxt = tools.CaffeSolver(trainnet_prototxt_path = osp.join(self.workdir, "trainnet.prototxt"), testnet_prototxt_path = osp.join(self.workdir, "valnet.prototxt"))
         self.solverprototxt.sp['base_lr'] = str(learning_rate)
-        self.solverprototxt.sp['test_interval'] = str(self.batchsize * 40)
+        self.solverprototxt.sp['test_interval'] = str(40)
+        self.solverprototxt.sp['test_iter'] = str(10)
         # self.solverprototxt.sp['test_iter'] = str(num_epochs*self.nSamples/self.batchsize)
         self.solverprototxt.write(osp.join(self.workdir, 'solver.prototxt'))
         # write train_val net.
