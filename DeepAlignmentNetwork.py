@@ -39,11 +39,9 @@ class DeepAlignmentNetwork(object):
     def createCNN(self, istrain):
         net = caffe.NetSpec()
         if istrain:
-            # net.data, net.label = L.HDF5Data(batch_size=100, source="./data/val_data_h5.txt", ntop=2)
             net.data = L.Data(source='./data/data_train_lmdb', backend=P.Data.LMDB, batch_size=self.batchsize, ntop=1)
             net.label = L.Data(source='./data/label_train_lmdb', backend=P.Data.LMDB, batch_size=self.batchsize, ntop=1)
         else:
-            # net.data, net.label = L.HDF5Data(batch_size=100, source="./data/val_data_h5.txt", ntop=2)
             net.data = L.Data(source='./data/data_val_lmdb', backend=P.Data.LMDB, batch_size=self.batchsize, ntop=1)
             net.label = L.Data(source='./data/label_val_lmdb', backend=P.Data.LMDB, batch_size=self.batchsize, ntop=1)
 
@@ -79,9 +77,9 @@ class DeepAlignmentNetwork(object):
         net.s1_fc1_batch = L.BatchNorm(net.s1_fc1_relu)
 
         net.s1_output = L.InnerProduct(net.s1_fc1_batch, num_output=136,
+                                weight_filler=dict(type='xavier'),
                                 bias_filler=dict(type='constant', value=0))
-        net.temp = L.Reshape(net.s1_output, reshape_param={'shape':{'dim':[-1,136]}})
-        net.s1_landmarks = L.Python(net.temp, module="InitLandmark",
+        net.s1_landmarks = L.Python(net.s1_output, module="InitLandmark",
                                         layer="InitLandmark",
                                         param_str=str(dict(initlandmarks=self.initLandmarks.tolist())))
 
@@ -157,12 +155,13 @@ class DeepAlignmentNetwork(object):
         net.s2_fc1_batch = L.BatchNorm(net.s2_fc1_relu)
 
         net.s2_output = L.InnerProduct(net.s2_fc1_batch, num_output=136,
+                                weight_filler=dict(type='xavier'),
                                 bias_filler=dict(type='constant', value=0))
         net.s2_landmarks = L.Eltwise(net.s2_output, net.s1_landmarks_affine)
         net.s2_landmarks = L.Python(net.s2_landmarks, net.s1_transform_params,
                                             module="LandmarkTranFormLayer",
                                             layer="LandmarkTranFormLayer",
-                                            param_str=str(dict(inverse=False)))
+                                            param_str=str(dict(inverse=True)))
 
     def get_prototxt(self, learning_rate = 0.001, num_epochs=100):
         self.solverprototxt = tools.CaffeSolver(trainnet_prototxt_path = osp.join(self.workdir, "trainnet.prototxt"), testnet_prototxt_path = osp.join(self.workdir, "valnet.prototxt"))

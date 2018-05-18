@@ -362,6 +362,9 @@ layer {
   top: "s1_output"
   inner_product_param {
     num_output: 136
+    weight_filler {
+      type: "xavier"
+    }
     bias_filler {
       type: "constant"
       value: 0.0
@@ -369,21 +372,9 @@ layer {
   }
 }
 layer {
-  name: "temp"
-  type: "Reshape"
-  bottom: "s1_output"
-  top: "temp"
-  reshape_param {
-    shape {
-      dim: -1
-      dim: 136
-    }
-  }
-}
-layer {
   name: "s1_landmarks"
   type: "Python"
-  bottom: "temp"
+  bottom: "s1_output"
   top: "s1_landmarks"
   python_param {
     module: "InitLandmark"
@@ -846,6 +837,9 @@ layer {
   top: "s2_output"
   inner_product_param {
     num_output: 136
+    weight_filler {
+      type: "xavier"
+    }
     bias_filler {
       type: "constant"
       value: 0.0
@@ -868,7 +862,7 @@ layer {
   python_param {
     module: "LandmarkTranFormLayer"
     layer: "LandmarkTranFormLayer"
-    param_str: "{\'inverse\': False}"
+    param_str: "{\'inverse\': True}"
   }
 }
 layer {
