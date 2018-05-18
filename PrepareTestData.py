@@ -1,8 +1,11 @@
+#!/usr/bin/env python3.5
+# -*- coding: UTF-8 -*-
+
 from ImageServer import ImageServer
 import numpy as np
 
-commonSetImageDirs = ["../data/images/helen/testset/"]
-commonSetBoundingBoxFiles = ["../data/boxesHelenTest.pkl"]
+commonSetImageDirs = ["./data/images/helen/testset/"]
+commonSetBoundingBoxFiles = ["./data/boxesHelenTest.pkl"]
 
 datasetDir = "./data/"
 

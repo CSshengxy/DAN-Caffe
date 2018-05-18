@@ -1,9 +1,30 @@
 import numpy as np
 from matplotlib import pyplot as plt
+import caffe
+from ImageServer import ImageServer
 
 Channels = 1
 imageHeight = 112
 imageWidth = 112
+
+caffe.set_mode_gpu()
+caffe.set_device(0)
+model_def = './trainnet.prototxt'
+model_weights = './snapshot_iter_2500.caffemodel'
+
+net = caffe.Net(model_def,      # defines the structure of the model
+                model_weights,  # contains the trained weights
+                caffe.TEST)     # use test mode (e.g., don't perform dropout)
+
+testSet = ImageServer.Load("commonSet.npz")
+trainSet = ImageServer.Load(datasetDir + "dataset_nimgs=38000_perturbations=[0.2, 0.2, 20, 0.25]_size=[112, 112].npz")
+
+errors = landmarkError(trainSet, testSet, normalization='centers', showResults=True)
+
+print("The test errors:")
+print(errors)
+
+
 
 def CropResizeRotate(self, img, inputShape, initLandmarks):
     A, t = utils.bestFit(initLandmarks, inputShape, True)
@@ -30,12 +51,16 @@ def landmarkError(ReferServer, ImageServer, normalization='centers', showResults
             img = np.mean(img, axis=0)[np.newaxis]
 
         resLandmarks = initLandmarks
-        inputImg, transform = CropResizeRotate(img, resLandmarks, ReferServer.initLandmarks)
+        inputImg, transform = CropResizeRotate(img, resLandmarks, ReferServer.initLandmarks[0])
         inputImg = inputImg - ReferServer.meanImg
         inputImg = inputImg / ReferServer.stdDevImg
 
         # TODO: 读入网络结构，根据当前图片获取输出
-        output = ...
+        net.blobs['data'].data[...] = inputImg
+        net.blobs['label'].data[...] = gtLandmarks
+        outputblob = net.forward()
+        output = output['s2_landmarks'][0]
+
         landmarks = output.reshape((-1, 2))
         resLandmarks = np.dot(landmarks - transform[1], np.linalg.inv(transform[0]))
 
