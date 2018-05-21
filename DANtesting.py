@@ -46,8 +46,6 @@ def landmarkError(ReferServer, ImageServer, normalization='centers', showResults
         net.blobs['label'].data[...] = gtLandmarks.reshape(136,1,1)
         net.forward()
         output = net.blobs['s2_landmarks'].data[0]
-        print("The {0}th image output.......".format(i))
-        print(output)
 
         landmarks = output.reshape((-1, 2))
         resLandmarks = np.dot(landmarks - transform[1], np.linalg.inv(transform[0]))
@@ -62,6 +60,9 @@ def landmarkError(ReferServer, ImageServer, normalization='centers', showResults
 
         error = np.mean(np.sqrt(np.sum((gtLandmarks - resLandmarks)**2,axis=1))) / normDist
         errors.append(error)
+
+        print("The {0}th image output.......".format(i))
+        print(resLandmarks)
 
         if showResults:
             plt.imshow(img[0], cmap=plt.cm.gray)

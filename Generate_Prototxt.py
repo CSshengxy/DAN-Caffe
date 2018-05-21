@@ -10,8 +10,14 @@ trainSet = ImageServer.Load(datasetDir + "dataset_nimgs=38000_perturbations=[0.2
 # "for validation we use a random subset of 100 images from the training set."(原文)
 validationSet = ImageServer.Load(datasetDir + "dataset_nimgs=100_perturbations=[]_size=[112, 112].npz")
 
-training = DeepAlignmentNetwork(2)
+training_stage1 = DeepAlignmentNetwork(1)
 
-training.loadData(trainSet, validationSet)
+training_stage1.loadData(trainSet, validationSet)
 
-training.get_prototxt(learning_rate = 0.0004, num_epochs=100)
+training_stage1.get_prototxt(learning_rate = 0.001, num_epochs=1000)
+
+training_stage2 = DeepAlignmentNetwork(2)
+
+training_stage2.loadData(trainSet, validationSet)
+
+training_stage2.get_prototxt(learning_rate = 0.001, num_epochs=1000)

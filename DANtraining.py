@@ -10,6 +10,6 @@ sys.path.append('./DesignLayer')
 
 caffe.set_mode_gpu()
 caffe.set_device(0)
-solver = caffe.AdamSolver(osp.join('./solver.prototxt'))
+solver = caffe.AdamSolver(osp.join('./proto/stage1_solver.prototxt'))
 print('Adam Solver finished------------------------')
 solver.solve()

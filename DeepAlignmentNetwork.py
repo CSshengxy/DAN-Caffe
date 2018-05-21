@@ -24,9 +24,9 @@ def fc_relu(bottom, nout):
 
 class DeepAlignmentNetwork(object):
     def __init__(self, nStages):
-        self.batchsize = 10
+        self.batchsize = 64
         self.nStages = nStages
-        self.workdir = './'
+        self.protodir = './proto'
 
     def loadData(self, trainSet, validationSet):
         """从trainSet,validationSet中读入imgServer的信息
@@ -99,7 +99,8 @@ class DeepAlignmentNetwork(object):
         # TRANSFORM ESTIMATION
         net.s1_transform_params = L.Python(net.s1_landmarks, module="TransformParamsLayer",
                                             layer="TransformParamsLayer",
-                                            param_str=str(dict(mean_shape=self.initLandmarks.tolist())))
+                                            param_str=str(dict(mean_shape=self.initLandmarks.tolist())),
+                                            propagate_down=0)
         # IMAGE TRANSFORM
         net.s1_img_output = L.Python(net.data, net.s1_transform_params,
                                         module="AffineTransformLayer",
@@ -108,13 +109,18 @@ class DeepAlignmentNetwork(object):
         net.s1_landmarks_affine = L.Python(net.s1_landmarks, net.s1_transform_params,
                                             module="LandmarkTranFormLayer",
                                             layer="LandmarkTranFormLayer",
-                                            param_str=str(dict(inverse=False)))
+                                            param_str=str(dict(inverse=False)),
+                                            propagate_down=0)
         # HEATMAP GENERATION
         net.s1_img_heatmap = L.Python(net.s1_landmarks_affine, module="GetHeatMapLayer",
                                         layer="GetHeatMapLayer")
         # FEATURE GENERATION
         # 使用56*56而不是112*112的原因是，可以减少参数，因为两者最终表现没有太大差别
-        net.s1_img_feature1,  net.s1_img_feature1_relu= fc_relu(net.s1_fc1_batch, 56*56)
+        net.s1_img_feature1 = L.InnerProduct(net.s1_fc1_batch, num_output=56*56,
+                                weight_filler=dict(type='xavier'),
+                                bias_filler=dict(type='constant', value=0),
+                                propagate_down=0)
+        net.s1_img_feature1_relu = L.ReLU(net.s1_img_feature1, in_place=True)
         net.s1_img_feature2 = L.Reshape(net.s1_img_feature1_relu, reshape_param={'shape':{'dim':[-1,1,56,56]}})
         net.s1_img_feature3 = L.Python(net.s1_img_feature2, module="Upscale2DLayer", layer="Upscale2DLayer", param_str=str(dict(scale_factor=2)))
 
@@ -164,15 +170,24 @@ class DeepAlignmentNetwork(object):
                                             param_str=str(dict(inverse=True)))
 
     def get_prototxt(self, learning_rate = 0.001, num_epochs=100):
-        self.solverprototxt = tools.CaffeSolver(trainnet_prototxt_path = osp.join(self.workdir, "trainnet.prototxt"), testnet_prototxt_path = osp.join(self.workdir, "valnet.prototxt"))
+        if self.nStages == 1:
+            trainnet_filename = "stage1_trainnet.prototxt"
+            valnet_filename = "stage1_valnet.prototxt"
+            solver_filename = "stage1_solver.prototxt"
+        else:
+            trainnet_filename = "stage2_trainnet.prototxt"
+            valnet_filename = "stage2_valnet.prototxt"
+            solver_filename = "stage2_solver.prototxt"
+        self.solverprototxt = tools.CaffeSolver(trainnet_prototxt_path = osp.join(self.protodir, trainnet_filename), testnet_prototxt_path = osp.join(self.protodir, valnet_filename))
         self.solverprototxt.sp['base_lr'] = str(learning_rate)
         self.solverprototxt.sp['test_interval'] = str(40)
-        self.solverprototxt.sp['test_iter'] = str(10)
+        self.solverprototxt.sp['test_iter'] = str(2)
+        self.solverprototxt.sp['snapshot_prefix'] = '\"./result/snapshot\"'
         # self.solverprototxt.sp['test_iter'] = str(num_epochs*self.nSamples/self.batchsize)
-        self.solverprototxt.write(osp.join(self.workdir, 'solver.prototxt'))
+        self.solverprototxt.write(osp.join(self.protodir, solver_filename))
         # write train_val net.
-        with open(osp.join(self.workdir, 'trainnet.prototxt'), 'w') as f:
+        with open(osp.join(self.protodir, trainnet_filename), 'w') as f:
             f.write(self.createCNN(True))
-        with open(osp.join(self.workdir, 'valnet.prototxt'), 'w') as f:
+        with open(osp.join(self.protodir, valnet_filename), 'w') as f:
             f.write(self.createCNN(False))
         print('get prototxt finished.')
