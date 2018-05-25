@@ -45,7 +45,7 @@ def landmarkError(ReferServer, ImageServer, normalization='centers', showResults
         net.blobs['data'].data[...] = inputImg
         net.blobs['label'].data[...] = gtLandmarks.reshape(136,1,1)
         net.forward()
-        output = net.blobs['s2_landmarks'].data[0]
+        output = net.blobs['s1_landmarks'].data[0]
 
         landmarks = output.reshape((-1, 2))
         resLandmarks = np.dot(landmarks - transform[1], np.linalg.inv(transform[0]))
@@ -80,15 +80,15 @@ imageWidth = 112
 
 caffe.set_mode_gpu()
 caffe.set_device(0)
-model_def = './trainnet.prototxt'
-model_weights = './snapshot_iter_2500.caffemodel'
+model_def = './proto/stage1_trainnet.prototxt'
+model_weights = './result/snapshot_iter_40000.caffemodel'
 
 net = caffe.Net(model_def,
                 model_weights,
                 caffe.TEST)
 
 testSet = ImageServer.Load("./data/commonSet.npz")
-trainSet = ImageServer.Load("./data/dataset_nimgs=38000_perturbations=[0.2, 0.2, 20, 0.25]_size=[112, 112].npz")
+trainSet = ImageServer.Load("./data/dataset_nimgs=44740_perturbations=[0.2, 0.2, 20, 0.25]_size=[112, 112].npz")
 
 errors = landmarkError(trainSet, testSet, normalization='centers', showResults=True)
 

@@ -91,6 +91,6 @@ def generate_label_lmdb(labels, train=True):
 
 datasetDir = "./data/"
 
-trainSet = ImageServer.Load(datasetDir + "dataset_nimgs=38000_perturbations=[0.2, 0.2, 20, 0.25]_size=[112, 112].npz")
+trainSet = ImageServer.Load(datasetDir + "dataset_nimgs=44740_perturbations=[0.2, 0.2, 20, 0.25]_size=[112, 112].npz")
 validationSet = ImageServer.Load(datasetDir + "dataset_nimgs=100_perturbations=[]_size=[112, 112].npz")
 loadData(trainSet, validationSet)
