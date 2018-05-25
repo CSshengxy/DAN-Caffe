@@ -70,7 +70,7 @@ class DeepAlignmentNetwork(object):
         net.s1_batch4_2 = L.BatchNorm(net.s1_relu4_2)
         net.s1_pool4 = max_pool(net.s1_batch4_2)
         if istrain:
-            net.s1_fc1_dropout = L.Dropout(net.s1_pool4, dropout_ratio=0.5, in_place=True)
+            net.s1_fc1_dropout = L.Dropout(net.s1_pool4, dropout_ratio=0.5)
         else:
             net.s1_fc1_dropout = net.s1_pool4
         net.s1_fc1, net.s1_fc1_relu = fc_relu(net.s1_fc1_dropout, 256)
@@ -154,7 +154,7 @@ class DeepAlignmentNetwork(object):
 
         net.s2_pool4_flatten = L.Flatten(net.s2_pool4)
         if istrain:
-            net.s2_fc1_dropout = L.Dropout(net.s2_pool4_flatten, dropout_ratio=0.5, in_place=True)
+            net.s2_fc1_dropout = L.Dropout(net.s2_pool4_flatten, dropout_ratio=0.5)
         else:
             net.s2_fc1_dropout = net.s2_pool4_flatten
         net.s2_fc1, net.s2_fc1_relu = fc_relu(net.s2_fc1_dropout, 256)
