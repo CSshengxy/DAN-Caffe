@@ -81,7 +81,7 @@ imageWidth = 112
 caffe.set_mode_gpu()
 caffe.set_device(0)
 model_def = './proto/stage1_trainnet.prototxt'
-model_weights = './result/snapshot_iter_40000.caffemodel'
+model_weights = './result/snapshot_iter_20000.caffemodel'
 
 net = caffe.Net(model_def,
                 model_weights,

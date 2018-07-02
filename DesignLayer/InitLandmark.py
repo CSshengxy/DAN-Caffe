@@ -7,7 +7,6 @@ class InitLandmark(caffe.Layer):
         check_params(params)
         self.initlandmarks = np.array(params['initlandmarks']).flatten()
     def reshape(self,bottom,top):
-        self.diff = np.zeros_like(bottom[0].data, dtype=np.float32)
         batch_size = bottom[0].shape[0]
         landmark_number = bottom[0].shape[1]
         top[0].reshape(batch_size, landmark_number)
